@@ -1,6 +1,29 @@
 import type { AppLocale } from '@/lib/i18n/locales';
 
 const en = {
+  rideInDistance: 'In {distance}, {instruction}',
+  rideOptions: 'Ride options',
+  rideContinueToDestination: 'Continue to your destination',
+  rideOffRoute: 'You’re off route',
+  rideOffRouteHelp: 'Find a new route from your current position.',
+  rideRemaining: '{distance} remaining',
+  rideRecalculating: 'Recalculating…',
+  rideRecalculate: 'Recalculate route',
+  rideKeepAwake: 'Keep screen on',
+  rideAudio: 'Spoken directions',
+  rideAudioEnabled: 'Spoken directions on',
+  rideWakeUnavailable:
+    'Screen wake lock is unavailable here. Use HTTPS or localhost on a supported browser.',
+  rideWakeActive: 'Screen stays on during this ride.',
+  rideWakePaused: 'Screen wake lock paused. Switch it off and on to retry.',
+  rideWakeOnStart: 'Screen stays on once you start riding.',
+  rideAudioUnavailable: 'No on-device voice is available for this language.',
+  rideAudioFailed:
+    'Spoken directions could not play. Switch them off and on to retry.',
+  rideRerouteOffline:
+    'Connect to the internet to recalculate. Your original route is still here.',
+  rideRerouteFailed:
+    'Couldn’t recalculate. Your original route is still here. Try again.',
   arrivedDestination: 'You have arrived.',
   chooseStart: 'Choose a starting point',
   resumeRoute: 'Resume route',
@@ -416,6 +439,31 @@ const en = {
 type MessageCatalogue = { [Key in keyof typeof en]: string };
 
 const gd: MessageCatalogue = {
+  rideInDistance: 'Ann an {distance}, {instruction}',
+  rideOptions: 'Roghainnean turais',
+  rideContinueToDestination: 'Lean ort chun a’ chinn-uidhe',
+  rideOffRoute: 'Tha thu far na slighe',
+  rideOffRouteHelp: 'Lorg slighe ùr bhon àite far a bheil thu.',
+  rideRemaining: '{distance} air fhàgail',
+  rideRecalculating: 'Ag ath-àireamhachadh…',
+  rideRecalculate: 'Ath-àireamhaich an t-slighe',
+  rideKeepAwake: 'Cùm an sgrìn air',
+  rideAudio: 'Stiùireadh labhairteach',
+  rideAudioEnabled: 'Stiùireadh labhairteach air',
+  rideWakeUnavailable:
+    'Chan eil glas-dùisg sgrìn ri fhaighinn an seo. Cleachd HTTPS no localhost ann am brabhsair le taic.',
+  rideWakeActive: 'Fanaidh an sgrìn air tron turas seo.',
+  rideWakePaused:
+    'Tha glas-dùisg sgrìn air stad. Cuir dheth is air e gus feuchainn a-rithist.',
+  rideWakeOnStart: 'Fanaidh an sgrìn air nuair a thòisicheas tu air an turas.',
+  rideAudioUnavailable:
+    'Chan eil guth air an inneal ri fhaighinn sa chànan seo.',
+  rideAudioFailed:
+    'Cha b’ urrainn an stiùireadh labhairteach a chluich. Cuir dheth is air e gus feuchainn a-rithist.',
+  rideRerouteOffline:
+    'Ceangail ris an eadar-lìon gus ath-àireamhachadh. Tha an t-slighe thùsail agad fhathast an seo.',
+  rideRerouteFailed:
+    'Cha b’ urrainn dhuinn ath-àireamhachadh. Tha an t-slighe thùsail agad fhathast an seo. Feuch a-rithist.',
   arrivedDestination: 'Tha thu air ruighinn.',
   chooseStart: 'Tagh àite tòiseachaidh',
   resumeRoute: 'Lean air an t-slighe',
@@ -854,6 +902,30 @@ const gd: MessageCatalogue = {
 };
 
 const es: MessageCatalogue = {
+  rideInDistance: 'En {distance}, {instruction}',
+  rideOptions: 'Opciones del trayecto',
+  rideContinueToDestination: 'Continúa hasta tu destino',
+  rideOffRoute: 'Te has desviado',
+  rideOffRouteHelp: 'Busca una nueva ruta desde tu posición actual.',
+  rideRemaining: 'Quedan {distance}',
+  rideRecalculating: 'Recalculando…',
+  rideRecalculate: 'Recalcular ruta',
+  rideKeepAwake: 'Mantener pantalla encendida',
+  rideAudio: 'Indicaciones de voz',
+  rideAudioEnabled: 'Indicaciones de voz activadas',
+  rideWakeUnavailable:
+    'No se puede mantener la pantalla encendida aquí. Usa HTTPS o localhost en un navegador compatible.',
+  rideWakeActive: 'La pantalla seguirá encendida durante el trayecto.',
+  rideWakePaused:
+    'La pantalla ya no se mantiene encendida. Desactiva y activa la opción para reintentar.',
+  rideWakeOnStart: 'La pantalla seguirá encendida al iniciar el trayecto.',
+  rideAudioUnavailable: 'No hay una voz local disponible para este idioma.',
+  rideAudioFailed:
+    'No se pudo reproducir la voz. Desactiva y activa la opción para reintentar.',
+  rideRerouteOffline:
+    'Conéctate a internet para recalcular. Tu ruta original sigue disponible.',
+  rideRerouteFailed:
+    'No se pudo recalcular. Tu ruta original sigue disponible. Inténtalo de nuevo.',
   arrivedDestination: 'Has llegado.',
   chooseStart: 'Elige un punto de partida',
   resumeRoute: 'Continuar ruta',
@@ -1275,6 +1347,30 @@ const es: MessageCatalogue = {
 };
 
 const hy: MessageCatalogue = {
+  rideInDistance: '{distance} հետո՝ {instruction}',
+  rideOptions: 'Երթի ընտրանքներ',
+  rideContinueToDestination: 'Շարունակեք դեպի նպատակակետ',
+  rideOffRoute: 'Դուք շեղվել եք երթուղուց',
+  rideOffRouteHelp: 'Գտեք նոր երթուղի ձեր ընթացիկ դիրքից։',
+  rideRemaining: 'Մնացել է {distance}',
+  rideRecalculating: 'Վերահաշվարկվում է…',
+  rideRecalculate: 'Վերահաշվարկել երթուղին',
+  rideKeepAwake: 'Էկրանը միացված պահել',
+  rideAudio: 'Ձայնային ուղղություններ',
+  rideAudioEnabled: 'Ձայնային ուղղությունները միացված են',
+  rideWakeUnavailable:
+    'Այստեղ էկրանը միացված պահելը հասանելի չէ։ Օգտագործեք HTTPS կամ localhost՝ աջակցվող դիտարկիչով։',
+  rideWakeActive: 'Այս երթի ընթացքում էկրանը կմնա միացված։',
+  rideWakePaused:
+    'Էկրանը միացված պահելը դադարեցված է։ Անջատեք և միացրեք՝ կրկին փորձելու համար։',
+  rideWakeOnStart: 'Երթը սկսելիս էկրանը կմնա միացված։',
+  rideAudioUnavailable: 'Այս լեզվի համար սարքում ձայն հասանելի չէ։',
+  rideAudioFailed:
+    'Ձայնային ուղղությունները չհնչեցին։ Անջատեք և միացրեք՝ կրկին փորձելու համար։',
+  rideRerouteOffline:
+    'Վերահաշվարկելու համար միացեք համացանցին։ Սկզբնական երթուղին պահպանված է։',
+  rideRerouteFailed:
+    'Չհաջողվեց վերահաշվարկել։ Սկզբնական երթուղին պահպանված է։ Կրկին փորձեք։',
   arrivedDestination: 'Դուք հասել եք։',
   chooseStart: 'Ընտրեք մեկնակետը',
   resumeRoute: 'Շարունակել երթուղին',

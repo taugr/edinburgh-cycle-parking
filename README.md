@@ -147,6 +147,21 @@ preference in the URL fragment. Route calculation and place search still
 require a connection, and clearing browser site data removes the local route
 library.
 
+While riding, the next-turn card shows the distance to the next instruction and
+remaining route distance. **Recalculate route** appears when GPS is off-route;
+it uses the current position, preserves the selected route style and destination,
+and retains via stops not yet passed on the route. Recalculation needs a connection
+and keeps the original route if it fails. Stopping or leaving the ride invalidates
+pending recalculation results.
+
+**Keep screen on** is optional and applies only during a live ride. It releases
+on arrival, stop, or leaving the journey and reacquires when the page becomes
+visible again. Wake lock requires browser support and a secure context (HTTPS
+or localhost); a plain HTTP LAN address may not support it. **Spoken directions**
+uses a device-local voice for the selected language when one is available. It
+announces instruction changes, off-route status and arrival, without sending
+instructions to a speech service. These options are off by default.
+
 Open the Bike Neuks menu and use **Plan a route** to start a draft or **My
 routes** to reopen routes saved on the current device. The normal Nearby sheet
 remains dedicated to finding cycle parking and other cycling places.

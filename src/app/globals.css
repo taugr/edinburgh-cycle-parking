@@ -7484,3 +7484,82 @@ a {
     white-space: nowrap;
   }
 }
+
+/* Riding keeps immediate guidance ahead of planning controls. */
+.route-journey.is-riding .journey-endpoints,
+.route-journey.is-riding .journey-route-choices,
+.route-journey.is-riding .journey-tools {
+  display: none;
+}
+.ride-guidance {
+  margin: 0.75rem 0;
+}
+.ride-next-turn {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  padding: 1rem;
+  border: 1px solid var(--accent);
+  border-radius: 14px;
+  background: var(--surface-strong);
+  color: var(--accent-strong);
+}
+.ride-next-turn > svg {
+  flex: 0 0 auto;
+  margin-top: 0.3rem;
+}
+.ride-next-turn strong {
+  display: block;
+  font-size: 1.75rem;
+  line-height: 1.2;
+}
+.ride-next-turn p {
+  margin: 0.4rem 0;
+  font-size: 1.1rem;
+  font-weight: 650;
+  line-height: 1.4;
+}
+.ride-next-turn small {
+  font-size: 0.85rem;
+}
+.ride-next-turn--off-route {
+  border-color: #b7791f;
+}
+.ride-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+.ride-options button,
+.ride-reroute {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--subtle);
+  border-radius: 10px;
+  background: var(--surface-strong);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+}
+.ride-options button[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+.ride-reroute {
+  width: 100%;
+  margin-top: 0.65rem;
+  font-weight: 650;
+}
+.ride-help {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.ride-help:empty {
+  display: none;
+}

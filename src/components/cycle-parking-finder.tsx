@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { RideGuidance } from '@/components/ride-guidance';
 import {
   AnimatePresence,
   LayoutGroup,
@@ -131,6 +132,7 @@ import { formatOpeningHoursLines } from '@/lib/opening-hours';
 import {
   getBearingDegrees,
   getLiveRouteProgress,
+  getRemainingRouteWaypoints,
   isLocationNearRoute,
   LIVE_ROUTE_MIN_HEADING_DISTANCE_METERS,
   type LiveRouteProgress,
@@ -1120,6 +1122,11 @@ export default function CycleParkingFinder() {
   const routeDestinationSearchDebounceTimeout = useRef<number | null>(null);
   const routeDestinationSearchRequestId = useRef(0);
   const routePlannerCalculationTimeout = useRef<number | null>(null);
+  const [isRerouting, setIsRerouting] = useState(false);
+  const [rerouteError, setRerouteError] = useState<string | null>(null);
+  const rerouteRequestId = useRef(0);
+  const latestTrackingRoute = useRef<CycleRoute | null>(null);
+  const confirmedRouteProgress = useRef(0);
   const liveRouteWatchId = useRef<number | null>(null);
   const previousLiveRouteMarkerPosition = useRef<CycleRoutePoint | null>(null);
   const copiedMessageTimeout = useRef<number | null>(null);
@@ -2500,6 +2507,10 @@ export default function CycleParkingFinder() {
       : directionsState.status === 'loaded'
         ? (directionsState.routes[directionsState.selectedPlan] ?? null)
         : null;
+  useLayoutEffect(() => {
+    latestTrackingRoute.current = activeRoute;
+    confirmedRouteProgress.current = 0;
+  }, [activeRoute]);
   const isRouteWorkspace = routeWorkspaceView !== null;
   const isDestinationParkingMode =
     routeWorkspaceView === 'destination-parking' &&
@@ -2673,6 +2684,19 @@ export default function CycleParkingFinder() {
       route: activeRoute,
     });
   }, [activeRoute, liveRouteTracking]);
+  // Unrelated ride UI updates must not restart the map's follow animation.
+  const liveRouteMarker = useMemo(
+    () =>
+      liveRouteTracking.status === 'tracking' && liveRouteProgress
+        ? {
+            isOffRoute: liveRouteProgress.isOffRoute,
+            headingDegrees: liveRouteProgress.headingDegrees,
+            position: liveRouteProgress.markerPosition,
+            updatedAt: liveRouteTracking.updatedAt,
+          }
+        : null,
+    [liveRouteProgress, liveRouteTracking],
+  );
   const panelDirection = parkingPanelState.direction;
   const parkingViewDirection = parkingView === 'saved' ? 1 : -1;
   const panelMotionContext: PanelMotionContext = {
@@ -3039,6 +3063,7 @@ export default function CycleParkingFinder() {
 
   useEffect(() => {
     return () => {
+      rerouteRequestId.current += 1;
       if (liveRouteWatchId.current !== null) {
         clearWatch(liveRouteWatchId.current);
         liveRouteWatchId.current = null;
@@ -3225,6 +3250,8 @@ export default function CycleParkingFinder() {
   } as MotionStyle;
 
   function clearLiveRouteWatch() {
+    rerouteRequestId.current += 1;
+    setIsRerouting(false);
     if (liveRouteWatchId.current === null) {
       return;
     }
@@ -3234,6 +3261,9 @@ export default function CycleParkingFinder() {
   }
 
   function stopLiveRouteTracking() {
+    rerouteRequestId.current += 1;
+    setIsRerouting(false);
+    setRerouteError(null);
     clearLiveRouteWatch();
     previousLiveRouteMarkerPosition.current = null;
     setLiveRouteTracking({ status: 'idle' });
@@ -3251,6 +3281,8 @@ export default function CycleParkingFinder() {
 
     clearLiveRouteWatch();
     previousLiveRouteMarkerPosition.current = null;
+    confirmedRouteProgress.current = 0;
+    setRerouteError(null);
     setLiveRouteTracking({ status: 'starting' });
 
     liveRouteWatchId.current = watchPosition(
@@ -3281,12 +3313,23 @@ export default function CycleParkingFinder() {
         const browserHeadingDegrees = Number.isFinite(position.coords.heading)
           ? position.coords.heading
           : null;
+        const trackingRoute = latestTrackingRoute.current;
+        if (!trackingRoute) return;
         const progressForMarkerPosition = getLiveRouteProgress({
           accuracyMeters,
           headingDegrees: browserHeadingDegrees,
           location,
-          route: activeRoute,
+          route: trackingRoute,
         });
+        if (
+          progressForMarkerPosition &&
+          !progressForMarkerPosition.isOffRoute
+        ) {
+          confirmedRouteProgress.current = Math.max(
+            confirmedRouteProgress.current,
+            progressForMarkerPosition.travelledMeters,
+          );
+        }
         const markerPosition =
           progressForMarkerPosition?.markerPosition ??
           ([location.latitude, location.longitude] satisfies CycleRoutePoint);
@@ -3327,6 +3370,109 @@ export default function CycleParkingFinder() {
         timeout: 12_000,
       },
     );
+  }
+
+  async function recalculateLiveRoute() {
+    if (
+      isRerouting ||
+      liveRouteTracking.status !== 'tracking' ||
+      !activeRoute ||
+      !liveRouteProgress?.isOffRoute
+    )
+      return;
+    const apiKey = process.env.NEXT_PUBLIC_CYCLESTREETS_API_KEY;
+    if (!navigator.onLine) {
+      setRerouteError(t('rideRerouteOffline'));
+      return;
+    }
+    if (!apiKey) {
+      setRerouteError(t('directionsNeedKey'));
+      return;
+    }
+    const planner = routeWorkspaceView === 'planner' && routeDraft !== null;
+    const waypoints = planner
+      ? routeDraft.waypoints
+      : directionsParkingPoint
+        ? [
+            {
+              id: 'start',
+              label: t('currentLocation'),
+              latitude: activeRoute.points[0]![0],
+              longitude: activeRoute.points[0]![1],
+              source: 'current-location' as const,
+            },
+            {
+              id: directionsParkingPoint.id,
+              label: directionsParkingPoint.name,
+              latitude: directionsParkingPoint.latitude,
+              longitude: directionsParkingPoint.longitude,
+              source: 'parking' as const,
+            },
+          ]
+        : [];
+    const remaining = getRemainingRouteWaypoints(
+      activeRoute,
+      waypoints,
+      confirmedRouteProgress.current,
+    );
+    if (!remaining.length) return;
+    const nextWaypoints: CycleRouteWaypoint[] = [
+      {
+        id: createLocalId(),
+        label: t('currentLocation'),
+        ...liveRouteTracking.location,
+        source: 'current-location',
+      },
+      ...remaining,
+    ];
+    const requestId = ++rerouteRequestId.current;
+    setIsRerouting(true);
+    setRerouteError(null);
+    try {
+      const finish = remaining.at(-1)!;
+      const point: ParkingPoint = {
+        id: finish.id,
+        name: finish.label,
+        latitude: finish.latitude,
+        longitude: finish.longitude,
+        properties: {},
+        sourceId: 'route-planner',
+      };
+      const routes =
+        nextWaypoints.length === 2 &&
+        distanceMeters(nextWaypoints[0]!, finish) <=
+          SHORT_CYCLE_ROUTE_THRESHOLD_METERS
+          ? buildShortCycleRoutes(nextWaypoints[0]!, point)
+          : parseCycleStreetsRoutes(
+              await fetchCycleStreetsDirections(
+                buildCycleStreetsRouteRequest({
+                  apiKey,
+                  waypoints: nextWaypoints,
+                }),
+              ),
+              point,
+            );
+      if (rerouteRequestId.current !== requestId) return;
+      // Preserve the rider's chosen preference, and the old route if it is unavailable.
+      const plan = activeRoute.plan;
+      if (!routes[plan]) throw new Error('Selected route style unavailable');
+      if (planner) {
+        setRouteDraft({ ...routeDraft, waypoints: nextWaypoints });
+        setRoutePlannerRoutes(routes);
+        setRoutePlannerStatus('loaded');
+        setRoutePlannerMessage(null);
+      } else if (directionsState.status === 'loaded') {
+        setDirectionsState({ ...directionsState, routes, selectedPlan: plan });
+      }
+      setActiveInstruction(null);
+      setRouteInstructionFocusRequest(null);
+      previousLiveRouteMarkerPosition.current = null;
+    } catch {
+      if (rerouteRequestId.current === requestId)
+        setRerouteError(t('rideRerouteFailed'));
+    } finally {
+      if (rerouteRequestId.current === requestId) setIsRerouting(false);
+    }
   }
 
   function toggleLiveRouteTracking() {
@@ -5643,16 +5789,7 @@ export default function CycleParkingFinder() {
                 ? routeInstructionFocusRequest
                 : null
             }
-            liveRouteMarker={
-              liveRouteTracking.status === 'tracking' && liveRouteProgress
-                ? {
-                    isOffRoute: liveRouteProgress.isOffRoute,
-                    headingDegrees: liveRouteProgress.headingDegrees,
-                    position: liveRouteProgress.markerPosition,
-                    updatedAt: liveRouteTracking.updatedAt,
-                  }
-                : null
-            }
+            liveRouteMarker={liveRouteMarker}
             shouldFollowLiveRoute={liveRouteTracking.status === 'tracking'}
             isDirectionsMode={isDirectionsMode || isRouteWorkspace}
             isDestinationParkingMode={isDestinationParkingMode}
@@ -6027,6 +6164,18 @@ export default function CycleParkingFinder() {
                         message={routePlannerMessage}
                         trackingStatus={liveRouteTracking.status}
                         hasArrived={liveRouteProgress?.hasArrived ?? false}
+                        rideGuidance={
+                          activeRoute ? (
+                            <RideGuidance
+                              route={activeRoute}
+                              progress={liveRouteProgress}
+                              tracking={liveRouteTracking.status === 'tracking'}
+                              rerouting={isRerouting}
+                              rerouteError={rerouteError}
+                              onReroute={() => void recalculateLiveRoute()}
+                            />
+                          ) : null
+                        }
                         currentInstruction={activeRouteInstruction}
                         onInstruction={selectRouteInstruction}
                         onTrack={toggleLiveRouteTracking}
@@ -6299,6 +6448,16 @@ export default function CycleParkingFinder() {
                           </motion.button>
                         </motion.div>
                       </motion.div>
+                      {activeRoute ? (
+                        <RideGuidance
+                          route={activeRoute}
+                          progress={liveRouteProgress}
+                          tracking={liveRouteTracking.status === 'tracking'}
+                          rerouting={isRerouting}
+                          rerouteError={rerouteError}
+                          onReroute={() => void recalculateLiveRoute()}
+                        />
+                      ) : null}
                       {liveRouteProgress?.hasArrived ? (
                         <motion.p
                           {...directionsRevealPresence}

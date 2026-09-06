@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import {
   ArrowLeft,
   ArrowUp,
@@ -45,6 +46,7 @@ type Props = {
     | 'too-far'
     | 'unavailable';
   hasArrived: boolean;
+  rideGuidance: ReactNode;
   onTrack: () => void;
   onNew: () => void;
   currentInstruction: CycleRouteInstruction | null;
@@ -67,6 +69,7 @@ export function RouteJourney({
   message,
   trackingStatus,
   hasArrived,
+  rideGuidance,
   onTrack,
   onNew,
   currentInstruction,
@@ -89,7 +92,7 @@ export function RouteJourney({
     trackingStatus === 'tracking' || trackingStatus === 'starting';
   return (
     <section
-      className="route-journey panel-view"
+      className={`route-journey panel-view${tracking ? ' is-riding' : ''}`}
       aria-label={t('planRoute')}
       data-testid="route-journey"
     >
@@ -273,11 +276,7 @@ export function RouteJourney({
                 )}
               </p>
             ) : null}
-            {tracking && currentInstruction ? (
-              <p className="journey-current-step" role="status">
-                {describeCycleRouteInstruction(currentInstruction, locale)}
-              </p>
-            ) : null}
+            {rideGuidance}
             {selectedRoute.instructions.length > 0 ? (
               <section
                 className="journey-instructions"

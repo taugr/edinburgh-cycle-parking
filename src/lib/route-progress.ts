@@ -34,6 +34,37 @@ export type LiveRouteProgress = {
   travelledMeters: number;
 };
 
+/** Distance to the next maneuver, rather than the full length of the current leg. */
+export function getNextRouteGuidance(
+  route: CycleRoute,
+  travelledMeters: number,
+) {
+  const upcoming = getInstructionDistances(route).find(
+    (instruction) => instruction.travelledMeters > travelledMeters + 1,
+  );
+  if (!upcoming) return null;
+  const instruction = route.instructions.find(({ id }) => id === upcoming.id);
+  return instruction
+    ? {
+        instruction,
+        distanceMeters: Math.max(0, upcoming.travelledMeters - travelledMeters),
+      }
+    : null;
+}
+
+/** Keep ordered, unvisited stops; never drop the destination. Use confirmed on-route progress. */
+export function getRemainingRouteWaypoints(
+  route: CycleRoute,
+  waypoints: import('@/lib/cyclestreets').CycleRouteWaypoint[],
+  travelledMeters: number,
+) {
+  return waypoints.slice(1).filter((waypoint, index, remaining) => {
+    if (index === remaining.length - 1) return true;
+    const projection = projectLocationToRoute(waypoint, route.points);
+    return !projection || projection.travelledMeters + 20 >= travelledMeters;
+  });
+}
+
 function getSnapThresholdMeters(accuracyMeters?: number | null) {
   if (
     typeof accuracyMeters !== 'number' ||

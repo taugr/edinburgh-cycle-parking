@@ -3,8 +3,45 @@ import type { CycleRoute } from '@/lib/cyclestreets';
 import {
   getBearingDegrees,
   getLiveRouteProgress,
+  getNextRouteGuidance,
+  getRemainingRouteWaypoints,
   isLocationNearRoute,
 } from '@/lib/route-progress';
+
+describe('ride guidance and remaining stops', () => {
+  it('counts down to the next maneuver instead of repeating the full leg distance', () => {
+    const guidance = getNextRouteGuidance(straightRoute, 40);
+    expect(guidance?.instruction.id).toBe('continue');
+    expect(guidance?.distanceMeters).toBeCloseTo(71.32, 0);
+    expect(getNextRouteGuidance(straightRoute, 180)).toBeNull();
+    // A nearby turn must not disappear merely because it is within GPS snap grace.
+    expect(getNextRouteGuidance(straightRoute, 106)?.instruction.id).toBe(
+      'continue',
+    );
+  });
+  it('keeps upcoming via stops in order and always retains the destination', () => {
+    const waypoints = [0, 0.0005, 0.0015, 0.002].map((offset, index) => ({
+      id: String(index),
+      label: String(index),
+      latitude: 55 + offset,
+      longitude: -3,
+      source: 'map' as const,
+    }));
+    expect(
+      getRemainingRouteWaypoints(straightRoute, waypoints, 100).map(
+        ({ id }) => id,
+      ),
+    ).toEqual(['2', '3']);
+    expect(
+      getRemainingRouteWaypoints(straightRoute, waypoints, 300).map(
+        ({ id }) => id,
+      ),
+    ).toEqual(['3']);
+    expect(getRemainingRouteWaypoints(straightRoute, waypoints, 0)).toEqual(
+      waypoints.slice(1),
+    );
+  });
+});
 
 const straightRoute: CycleRoute = {
   plan: 'balanced',
