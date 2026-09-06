@@ -1,3 +1,66 @@
+import { isResolvedLocation } from '@/lib/geo';
+import type { UserLocation } from '@/lib/types';
+
+export const lastLocationStorageKey = 'neuk-bike:last-location:v1';
+export const lastLocationMaxAgeMs = 24 * 60 * 60 * 1000;
+
+export function clearLastLocation() {
+  try {
+    window.localStorage.removeItem(lastLocationStorageKey);
+  } catch {
+    // Storage can be unavailable in private browsing.
+  }
+}
+
+export function readLastLocation(): UserLocation | null {
+  try {
+    const value = JSON.parse(
+      window.localStorage.getItem(lastLocationStorageKey) ?? 'null',
+    );
+    if (
+      value &&
+      typeof value.latitude === 'number' &&
+      typeof value.longitude === 'number' &&
+      isResolvedLocation(value) &&
+      typeof value.timestamp === 'number' &&
+      Number.isFinite(value.timestamp) &&
+      value.timestamp <= Date.now() &&
+      Date.now() - value.timestamp < lastLocationMaxAgeMs
+    ) {
+      return { latitude: value.latitude, longitude: value.longitude };
+    }
+  } catch {
+    // A corrupt or inaccessible cache must not prevent startup.
+  }
+  clearLastLocation();
+  return null;
+}
+
+export function saveLastLocation(location: UserLocation, timestamp: number) {
+  if (!isResolvedLocation(location) || !Number.isFinite(timestamp)) return;
+  try {
+    window.localStorage.setItem(
+      lastLocationStorageKey,
+      JSON.stringify({ ...location, timestamp }),
+    );
+  } catch {
+    // GPS remains usable when storage is blocked or full.
+  }
+}
+
+// Permission belongs to the browser: never infer a grant from saved coordinates.
+export async function getLocationPermission(): Promise<
+  PermissionState | 'unknown'
+> {
+  // Preserve deterministic local GPS scenarios without invoking real permissions.
+  if (getMockGeolocationConfig()) return 'granted';
+  try {
+    return (await navigator.permissions.query({ name: 'geolocation' })).state;
+  } catch {
+    return 'unknown';
+  }
+}
+
 type GeolocationSuccess = PositionCallback;
 type GeolocationFailure = PositionErrorCallback | null | undefined;
 

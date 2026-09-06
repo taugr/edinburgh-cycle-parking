@@ -101,8 +101,12 @@ import {
 } from '@/lib/geocoder';
 import {
   canUseGeolocation,
+  clearLastLocation,
   clearWatch,
   getCurrentPosition,
+  getLocationPermission,
+  readLastLocation,
+  saveLastLocation,
   watchPosition,
 } from '@/lib/geolocation';
 import type {
@@ -723,7 +727,12 @@ type LocationState =
   | { status: 'fallback'; location: UserLocation }
   | { status: 'locating'; location: UserLocation; label?: string }
   | { status: 'located'; location: UserLocation }
-  | { status: 'searched'; location: UserLocation; label: string }
+  | {
+      status: 'searched';
+      location: UserLocation;
+      label: string;
+      isCached?: boolean;
+    }
   | { status: 'too-far'; location: UserLocation }
   | { status: 'denied'; location: UserLocation }
   | { status: 'unavailable'; location: UserLocation };
@@ -988,6 +997,7 @@ export default function CycleParkingFinder() {
   );
   const [placeQuery, setPlaceQuery] = useState('');
   const [hasRequestedLocation, setHasRequestedLocation] = useState(false);
+  const locationRequestId = useRef(0);
   const [placeResults, setPlaceResults] = useState<PlaceSearchResult[]>([]);
   const [activePlaceResultIndex, setActivePlaceResultIndex] = useState(0);
   const [placeSearchMessage, setPlaceSearchMessage] = useState<string | null>(
@@ -1357,8 +1367,16 @@ export default function CycleParkingFinder() {
         const { referenceLocation, selectedParkingId } = parseShareLinkState(
           window.location.search,
         );
+        const permission = await getLocationPermission();
+        if (permission === 'denied') clearLastLocation();
+        const lastLocation =
+          permission === 'denied' ? null : readLastLocation();
+        const cachedLocation =
+          lastLocation && isLocationInParkingCoverage(lastLocation, manifest)
+            ? lastLocation
+            : null;
         await client.loadLocation(
-          referenceLocation ?? EDINBURGH_FALLBACK_LOCATION,
+          referenceLocation ?? cachedLocation ?? EDINBURGH_FALLBACK_LOCATION,
         );
         const selectedPoint = selectedParkingId
           ? await client.loadPoint(selectedParkingId)
@@ -1423,7 +1441,18 @@ export default function CycleParkingFinder() {
           return;
         }
 
-        requestLocation();
+        if (cachedLocation) {
+          setLocationState({
+            status: 'searched',
+            label: translate(localeRef.current, 'lastKnownLocation'),
+            isCached: true,
+            location: cachedLocation,
+          });
+          requestCurrentLocationFocus();
+        }
+        if (permission === 'granted') {
+          requestLocation(undefined, false, cachedLocation);
+        }
       } catch {
         if (cancelled) {
           return;
@@ -1436,6 +1465,7 @@ export default function CycleParkingFinder() {
     void initializeParkingData();
     return () => {
       cancelled = true;
+      locationRequestId.current += 1;
     };
   }, []);
 
@@ -1470,7 +1500,12 @@ export default function CycleParkingFinder() {
   }, []);
 
   useEffect(() => {
-    const stored = readSavedNeuks(window.localStorage);
+    let stored: ReturnType<typeof readSavedNeuks>;
+    try {
+      stored = readSavedNeuks(window.localStorage);
+    } catch {
+      stored = { items: [], ok: false };
+    }
     setSavedNeuks(stored.items);
     setSavedNeuksStatus(stored.ok ? 'ready' : 'storage-error');
     if (!stored.ok) {
@@ -2138,10 +2173,13 @@ export default function CycleParkingFinder() {
   }
 
   useEffect(() => {
-    const storedThemeMode = window.localStorage.getItem(themeStorageKey);
-
-    if (isThemeMode(storedThemeMode)) {
-      setThemeMode(storedThemeMode);
+    try {
+      const storedThemeMode = window.localStorage.getItem(themeStorageKey);
+      if (isThemeMode(storedThemeMode)) {
+        setThemeMode(storedThemeMode);
+      }
+    } catch {
+      // Retain the default theme when storage is unavailable.
     }
   }, []);
 
@@ -2169,7 +2207,11 @@ export default function CycleParkingFinder() {
   }, [resolvedTheme]);
 
   useEffect(() => {
-    window.localStorage.setItem(themeStorageKey, themeMode);
+    try {
+      window.localStorage.setItem(themeStorageKey, themeMode);
+    } catch {
+      // Keep the theme choice for this visit.
+    }
   }, [themeMode]);
 
   useEffect(() => {
@@ -3575,6 +3617,7 @@ export default function CycleParkingFinder() {
     label?: string,
     selectedParkingId?: string,
   ) {
+    locationRequestId.current += 1;
     dispatchParkingPanel({
       selectedId: selectedParkingId ?? null,
       type: 'RESET_LIST',
@@ -3603,7 +3646,12 @@ export default function CycleParkingFinder() {
     return true;
   }
 
-  function requestLocation(selectedParkingId?: string, userInitiated = false) {
+  function requestLocation(
+    selectedParkingId?: string,
+    userInitiated = false,
+    cachedLocation: UserLocation | null = null,
+  ) {
+    const requestId = ++locationRequestId.current;
     setHasRequestedLocation(userInitiated);
     if (parkingView === 'saved') {
       showNearby();
@@ -3615,31 +3663,35 @@ export default function CycleParkingFinder() {
     clearDirectionsData();
 
     if (!canUseGeolocation()) {
+      if (cachedLocation) return;
       applyFallbackLocation('unavailable');
       return;
     }
 
-    setLocationState((current) => ({
-      status: 'locating',
-      location: current.location,
-      label:
-        current.status === 'searched'
-          ? current.label
-          : current.status === 'located'
-            ? t('currentLocation')
-            : current.status === 'locating'
-              ? current.label
-              : t('edinburghReference'),
-    }));
+    if (!cachedLocation)
+      setLocationState((current) => ({
+        status: 'locating',
+        location: current.location,
+        label:
+          current.status === 'searched'
+            ? current.label
+            : current.status === 'located'
+              ? t('currentLocation')
+              : current.status === 'locating'
+                ? current.label
+                : t('edinburghReference'),
+      }));
 
     getCurrentPosition(
       (position) => {
+        if (requestId !== locationRequestId.current) return;
         const location = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
         };
 
         if (!isResolvedLocation(location)) {
+          if (cachedLocation) return;
           applyFallbackLocation('unavailable');
           return;
         }
@@ -3652,16 +3704,21 @@ export default function CycleParkingFinder() {
         );
 
         if (didApplyLocation) {
+          saveLastLocation(location, position.timestamp);
           captureAnalyticsEvent('location_granted');
           requestCurrentLocationFocus();
         } else {
+          clearLastLocation();
           captureAnalyticsEvent('location_denied', { reason: 'too_far' });
         }
       },
       (error) => {
+        if (requestId !== locationRequestId.current) return;
         const status =
           error.code === error.PERMISSION_DENIED ? 'denied' : 'unavailable';
+        if (status === 'denied') clearLastLocation();
         captureAnalyticsEvent('location_denied', { reason: status });
+        if (cachedLocation && status !== 'denied') return;
         applyFallbackLocation(status);
       },
       {
@@ -4194,7 +4251,12 @@ export default function CycleParkingFinder() {
 
   function commitSavedNeuks(items: SavedNeukRecord[]) {
     setSavedNeuks(items);
-    const wasWritten = writeSavedNeuks(window.localStorage, items);
+    let wasWritten = false;
+    try {
+      wasWritten = writeSavedNeuks(window.localStorage, items);
+    } catch {
+      // Access to localStorage itself can throw before writing.
+    }
     setSavedNeuksStatus(wasWritten ? 'ready' : 'storage-error');
     if (!wasWritten) {
       if (savedNeuksMessageTimeout.current !== null) {
@@ -5610,16 +5672,23 @@ export default function CycleParkingFinder() {
           </motion.button>
         </form>
 
-        {locationState.status !== 'located' &&
-        locationState.status !== 'searched' &&
-        locationState.status !== 'locating' ? (
+        {(locationState.status === 'searched' && locationState.isCached) ||
+        (locationState.status !== 'located' &&
+          locationState.status !== 'searched' &&
+          locationState.status !== 'locating') ? (
           <div
             className="location-context"
             aria-live="polite"
             data-testid={`location-context-${surface}`}
           >
             <div className="location-context-row">
-              <span>{t('showingEdinburgh')}</span>
+              <span>
+                {t(
+                  locationState.status === 'searched' && locationState.isCached
+                    ? 'lastKnownLocation'
+                    : 'showingEdinburgh',
+                )}
+              </span>
               <span aria-hidden="true">·</span>
               <button
                 type="button"

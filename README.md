@@ -98,6 +98,18 @@ Drinking water switch is enabled in Map layers. Selecting a point shows its
 distance and a Directions action without replacing or reranking the nearby
 parking list. The layer choice is stored only in the current browser.
 
+On startup, GPS is requested automatically only when the browser reports an
+already-granted location permission. Otherwise, use **Use my location** to request
+a fresh fix; simply visiting or reloading never initiates a permission prompt.
+The last successful in-coverage GPS position and its timestamp are saved in this
+browser for up to 24 hours. Returning visits can use it as a **Last known location**
+reference while an already-authorized GPS refresh runs. It is not treated as live
+GPS or used automatically as a route origin. Failed background refreshes retain
+that reference; denied permission clears the cache. Shared links take precedence.
+Expired or invalid cached positions are discarded, and blocked browser storage
+does not prevent using the app. No permission grant is stored by the app: the
+browser controls permission persistence. Clearing site data removes the position.
+
 If geolocation is unavailable or the requested location is outside the UK,
 Ireland, Spain, and Armenia, the app falls back to central Edinburgh and
 shows a compact “Showing Edinburgh · Use my location” prompt. GPS and searched

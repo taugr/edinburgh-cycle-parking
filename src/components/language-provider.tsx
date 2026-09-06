@@ -35,12 +35,13 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<AppLocale>(defaultAppLocale);
 
   useEffect(() => {
-    setLocaleState(
-      resolveAppLocale(
-        window.localStorage.getItem(languageStorageKey),
-        navigator.languages,
-      ),
-    );
+    let savedLocale: string | null = null;
+    try {
+      savedLocale = window.localStorage.getItem(languageStorageKey);
+    } catch {
+      // Use the browser language when storage is unavailable.
+    }
+    setLocaleState(resolveAppLocale(savedLocale, navigator.languages));
   }, []);
 
   useEffect(() => {
@@ -48,7 +49,11 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, [locale]);
 
   const setLocale = useCallback((nextLocale: AppLocale) => {
-    window.localStorage.setItem(languageStorageKey, nextLocale);
+    try {
+      window.localStorage.setItem(languageStorageKey, nextLocale);
+    } catch {
+      // Keep the language choice for this visit.
+    }
     setLocaleState(nextLocale);
   }, []);
 
