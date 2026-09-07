@@ -98,25 +98,29 @@ Drinking water switch is enabled in Map layers. Selecting a point shows its
 distance and a Directions action without replacing or reranking the nearby
 parking list. The layer choice is stored only in the current browser.
 
-On startup, GPS is requested automatically only when the browser reports an
-already-granted location permission. Otherwise, use **Use my location** to request
-a fresh fix; simply visiting or reloading never initiates a permission prompt.
-The last successful in-coverage GPS position and its timestamp are saved in this
-browser for up to 24 hours. Returning visits can use it as a **Last known location**
-reference while an already-authorized GPS refresh runs. It is not treated as live
-GPS or used automatically as a route origin. Failed background refreshes retain
-that reference; denied permission clears the cache. Shared links take precedence.
-Expired or invalid cached positions are discarded, and blocked browser storage
-does not prevent using the app. No permission grant is stored by the app: the
-browser controls permission persistence. Clearing site data removes the position.
+On the first visit, the app requests location once after loading the parking
+finder. While browser permission is granted, returning visits refresh GPS
+without another permission prompt. Dismissing the dialog suppresses automatic
+requests for 24 hours; denying permission stops automatic requests until the
+user retries with the location button beside search or grants access in browser
+settings. Permission lifetime remains browser-controlled. When storage is
+blocked, the location button still works, but the app does not automatically
+prompt because it cannot reliably remember an earlier request.
 
-If geolocation is unavailable or the requested location is outside the UK,
-Ireland, Spain, and Armenia, the app falls back to central Edinburgh and
-shows a compact “Showing Edinburgh · Use my location” prompt. GPS and searched
-places need no extra status line; the selected search name stays in the search
-field. Permission errors appear only after requesting location explicitly.
-Only confirmed GPS uses the blue location marker. The dark basemap increases street, path, and label contrast
-while preserving route overlays and path patterns.
+The last successful in-coverage GPS fix is cached locally for up to 24 hours.
+Searched places, opened offline areas, and areas reached by manually moving the
+map are remembered separately until replaced or site data is cleared. On return,
+shared links take precedence, followed by the last browsed area, a valid cached
+GPS reference, and central Edinburgh. Denying GPS clears its cached fix but keeps
+the browsed area. Automatic map focus and route navigation do not overwrite it.
+A failed GPS refresh preserves an available reference. Restored areas and cached
+GPS appear as reference markers, never as live GPS or automatic route origins.
+Expired or invalid GPS cache records are discarded.
+
+The header has no persistent location status row. The location button provides
+manual retry, with concise feedback after an explicit request fails. Only a
+confirmed GPS fix uses the blue location marker. The dark basemap increases
+street, path, and label contrast while preserving route overlays and path patterns.
 The map's “Plan a route” button opens destination search in the same map and sheet. The sliders
 icon beside Parking opens parking preferences. Route planning is also available
 from the existing menu.

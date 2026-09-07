@@ -187,7 +187,7 @@ test.beforeEach(async ({ context, page }) => {
 async function plan(page: Page) {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await expect(page.getByTestId('location-context-mobile')).toContainText('');
+  await expect(page.locator('.location-context')).toHaveCount(0);
   await expect(page.getByTestId('parking-list')).toBeVisible();
   await page.getByTestId('map-plan-route').click();
   await page.getByRole('combobox').fill('Destination');

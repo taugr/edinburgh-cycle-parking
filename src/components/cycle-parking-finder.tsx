@@ -109,6 +109,13 @@ import {
   saveLastLocation,
   watchPosition,
 } from '@/lib/geolocation';
+import {
+  beginAutomaticLocationRequest,
+  readLastArea,
+  rememberLocationDenial,
+  rememberLocationRequest,
+  saveLastArea,
+} from '@/lib/location-preferences';
 import type {
   CyclingPoiCategory,
   CyclingPoiPoint,
@@ -996,7 +1003,6 @@ export default function CycleParkingFinder() {
     null,
   );
   const [placeQuery, setPlaceQuery] = useState('');
-  const [hasRequestedLocation, setHasRequestedLocation] = useState(false);
   const locationRequestId = useRef(0);
   const [placeResults, setPlaceResults] = useState<PlaceSearchResult[]>([]);
   const [activePlaceResultIndex, setActivePlaceResultIndex] = useState(0);
@@ -1368,15 +1374,41 @@ export default function CycleParkingFinder() {
           window.location.search,
         );
         const permission = await getLocationPermission();
-        if (permission === 'denied') clearLastLocation();
+        if (permission === 'denied') {
+          clearLastLocation();
+          rememberLocationDenial();
+        }
         const lastLocation =
           permission === 'denied' ? null : readLastLocation();
         const cachedLocation =
           lastLocation && isLocationInParkingCoverage(lastLocation, manifest)
             ? lastLocation
             : null;
+        const lastArea = readLastArea();
+        const restoredReference: Extract<
+          LocationState,
+          { status: 'searched' }
+        > | null =
+          lastArea && isLocationInParkingCoverage(lastArea.location, manifest)
+            ? {
+                status: 'searched',
+                location: lastArea.location,
+                label:
+                  lastArea.label ??
+                  translate(localeRef.current, 'lastViewedArea'),
+              }
+            : cachedLocation
+              ? {
+                  status: 'searched',
+                  location: cachedLocation,
+                  label: translate(localeRef.current, 'lastKnownLocation'),
+                  isCached: true,
+                }
+              : null;
         await client.loadLocation(
-          referenceLocation ?? cachedLocation ?? EDINBURGH_FALLBACK_LOCATION,
+          referenceLocation ??
+            restoredReference?.location ??
+            EDINBURGH_FALLBACK_LOCATION,
         );
         const selectedPoint = selectedParkingId
           ? await client.loadPoint(selectedParkingId)
@@ -1441,17 +1473,12 @@ export default function CycleParkingFinder() {
           return;
         }
 
-        if (cachedLocation) {
-          setLocationState({
-            status: 'searched',
-            label: translate(localeRef.current, 'lastKnownLocation'),
-            isCached: true,
-            location: cachedLocation,
-          });
+        if (restoredReference) {
+          setLocationState(restoredReference);
           requestCurrentLocationFocus();
         }
-        if (permission === 'granted') {
-          requestLocation(undefined, false, cachedLocation);
+        if (canUseGeolocation() && beginAutomaticLocationRequest(permission)) {
+          requestLocation(undefined, false, restoredReference);
         }
       } catch {
         if (cancelled) {
@@ -2154,6 +2181,8 @@ export default function CycleParkingFinder() {
   function viewSavedOfflineArea(area: OfflineAreaRecord) {
     if (!area.center) return;
     setIsOfflineAreasOpen(false);
+    locationRequestId.current += 1;
+    saveLastArea(area.center, area.name);
     setLocationState({
       status: 'searched',
       location: area.center,
@@ -3577,6 +3606,20 @@ export default function CycleParkingFinder() {
     }));
   }
 
+  function cancelLocationRequest() {
+    locationRequestId.current += 1;
+    setLocationState((current) =>
+      current.status === 'locating'
+        ? {
+            status: 'searched',
+            location: current.location,
+            label: current.label ?? t('selectedPlace'),
+            isCached: true,
+          }
+        : current,
+    );
+  }
+
   function requestCurrentLocationFocus() {
     setCurrentLocationFocusRequestId((requestId) => requestId + 1);
   }
@@ -3586,16 +3629,31 @@ export default function CycleParkingFinder() {
       LocationState['status'],
       'denied' | 'too-far' | 'unavailable'
     >,
+    previousReference: Extract<
+      LocationState,
+      { status: 'searched' }
+    > | null = null,
   ) {
-    setLocationState({
-      status,
-      location: EDINBURGH_FALLBACK_LOCATION,
-    });
     const client = parkingDataClient.current;
     const manifest = client?.getManifest();
+    const lastArea = readLastArea();
+    const retainedReference =
+      previousReference && (status !== 'denied' || !previousReference.isCached)
+        ? previousReference
+        : lastArea &&
+            manifest &&
+            isLocationInParkingCoverage(lastArea.location, manifest)
+          ? {
+              status: 'searched' as const,
+              location: lastArea.location,
+              label: lastArea.label ?? t('lastViewedArea'),
+            }
+          : null;
+    const location = retainedReference?.location ?? EDINBURGH_FALLBACK_LOCATION;
+    setLocationState(retainedReference ?? { status, location });
     if (client && manifest) {
       void client
-        .loadLocation(EDINBURGH_FALLBACK_LOCATION)
+        .loadLocation(location)
         .then(() => {
           setParkingPoints((current) =>
             keepParkingPointsWhenUnchanged(
@@ -3630,6 +3688,7 @@ export default function CycleParkingFinder() {
       return false;
     }
 
+    if (status === 'searched') saveLastArea(location, label);
     setLocationState(
       status === 'searched'
         ? {
@@ -3649,13 +3708,42 @@ export default function CycleParkingFinder() {
   function requestLocation(
     selectedParkingId?: string,
     userInitiated = false,
-    cachedLocation: UserLocation | null = null,
+    restoredReference: Extract<
+      LocationState,
+      { status: 'searched' }
+    > | null = null,
   ) {
     const requestId = ++locationRequestId.current;
-    setHasRequestedLocation(userInitiated);
-    if (parkingView === 'saved') {
-      showNearby();
-    }
+    if (userInitiated) rememberLocationRequest();
+    setPlaceSearchMessage(null);
+    const fallbackReference =
+      restoredReference ??
+      (locationState.status === 'searched'
+        ? locationState
+        : locationState.status === 'located'
+          ? {
+              status: 'searched' as const,
+              location: locationState.location,
+              label: t('lastKnownLocation'),
+              isCached: true,
+            }
+          : null);
+    const fail = (status: 'denied' | 'unavailable' | 'too-far') => {
+      if (requestId !== locationRequestId.current) return;
+      applyFallbackLocation(status, fallbackReference);
+      if (userInitiated) {
+        setPlaceSearchMessage(
+          t(
+            status === 'denied'
+              ? 'locationPermissionNeeded'
+              : status === 'too-far'
+                ? 'locationOutsideCoverage'
+                : 'locationNotAvailable',
+          ),
+        );
+      }
+    };
+    if (parkingView === 'saved') showNearby();
     dispatchParkingPanel({
       selectedId: selectedParkingId ?? null,
       type: 'RESET_LIST',
@@ -3663,24 +3751,14 @@ export default function CycleParkingFinder() {
     clearDirectionsData();
 
     if (!canUseGeolocation()) {
-      if (cachedLocation) return;
-      applyFallbackLocation('unavailable');
+      fail('unavailable');
       return;
     }
-
-    if (!cachedLocation)
-      setLocationState((current) => ({
-        status: 'locating',
-        location: current.location,
-        label:
-          current.status === 'searched'
-            ? current.label
-            : current.status === 'located'
-              ? t('currentLocation')
-              : current.status === 'locating'
-                ? current.label
-                : t('edinburghReference'),
-      }));
+    setLocationState({
+      status: 'locating',
+      location: fallbackReference?.location ?? locationState.location,
+      label: fallbackReference?.label ?? t('edinburghReference'),
+    });
 
     getCurrentPosition(
       (position) => {
@@ -3689,43 +3767,50 @@ export default function CycleParkingFinder() {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
         };
-
         if (!isResolvedLocation(location)) {
-          if (cachedLocation) return;
-          applyFallbackLocation('unavailable');
+          fail('unavailable');
           return;
         }
-
-        const didApplyLocation = applyReferenceLocation(
-          location,
-          'located',
-          undefined,
-          selectedParkingId,
-        );
-
-        if (didApplyLocation) {
+        const manifest = parkingDataClient.current?.getManifest();
+        if (manifest && !isLocationInParkingCoverage(location, manifest)) {
+          clearLastLocation();
+          captureAnalyticsEvent('location_denied', { reason: 'too_far' });
+          fail('too-far');
+          return;
+        }
+        if (
+          applyReferenceLocation(
+            location,
+            'located',
+            undefined,
+            selectedParkingId,
+          )
+        ) {
           saveLastLocation(location, position.timestamp);
           captureAnalyticsEvent('location_granted');
           requestCurrentLocationFocus();
-        } else {
-          clearLastLocation();
-          captureAnalyticsEvent('location_denied', { reason: 'too_far' });
         }
       },
       (error) => {
         if (requestId !== locationRequestId.current) return;
         const status =
           error.code === error.PERMISSION_DENIED ? 'denied' : 'unavailable';
-        if (status === 'denied') clearLastLocation();
+        if (status === 'denied') {
+          clearLastLocation();
+          // Browsers also report PERMISSION_DENIED when a dialog is dismissed.
+          // A still-promptable permission gets the 24-hour cooldown; an actual
+          // denial (or an unqueryable decision) stops automatic requests.
+          void getLocationPermission().then((permission) => {
+            if (requestId !== locationRequestId.current) return;
+            if (permission !== 'prompt') rememberLocationDenial();
+            fail(status);
+          });
+        } else {
+          fail(status);
+        }
         captureAnalyticsEvent('location_denied', { reason: status });
-        if (cachedLocation && status !== 'denied') return;
-        applyFallbackLocation(status);
       },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 60_000,
-        timeout: 10_000,
-      },
+      { enableHighAccuracy: true, maximumAge: 60_000, timeout: 10_000 },
     );
   }
 
@@ -4331,6 +4416,7 @@ export default function CycleParkingFinder() {
   function openNewRoutePlanner(
     source: 'menu' | 'saved-routes' | 'map' = 'saved-routes',
   ) {
+    cancelLocationRequest();
     stopLiveRouteTracking();
     setJourneyEditing(false);
     setRouteLibraryReturnView(null);
@@ -4367,6 +4453,7 @@ export default function CycleParkingFinder() {
   }
 
   function openSavedRoutes() {
+    cancelLocationRequest();
     stopLiveRouteTracking();
     const preservePlanner =
       routeWorkspaceView === 'planner' && routeDraft !== null;
@@ -4503,6 +4590,7 @@ export default function CycleParkingFinder() {
   }
 
   function openJourneyToParking(point: ParkingPoint) {
+    cancelLocationRequest();
     cancelRouteDestinationSearchWork();
     stopLiveRouteTracking();
     clearDirectionsData();
@@ -5405,7 +5493,7 @@ export default function CycleParkingFinder() {
           }}
         >
           {isBrandTrigger ? (
-            <img src="favicon.svg" alt="" aria-hidden="true" />
+            <img src="favicon.svg?v=white-pin-1" alt="" aria-hidden="true" />
           ) : (
             <Settings size={18} aria-hidden="true" />
           )}
@@ -5672,47 +5760,6 @@ export default function CycleParkingFinder() {
           </motion.button>
         </form>
 
-        {(locationState.status === 'searched' && locationState.isCached) ||
-        (locationState.status !== 'located' &&
-          locationState.status !== 'searched' &&
-          locationState.status !== 'locating') ? (
-          <div
-            className="location-context"
-            aria-live="polite"
-            data-testid={`location-context-${surface}`}
-          >
-            <div className="location-context-row">
-              <span>
-                {t(
-                  locationState.status === 'searched' && locationState.isCached
-                    ? 'lastKnownLocation'
-                    : 'showingEdinburgh',
-                )}
-              </span>
-              <span aria-hidden="true">·</span>
-              <button
-                type="button"
-                onClick={() => {
-                  captureAnalyticsEvent('location_requested');
-                  requestLocation(undefined, true);
-                }}
-              >
-                {t('useMyLocation')}
-              </button>
-            </div>
-            {hasRequestedLocation ? (
-              <small>
-                {t(
-                  locationState.status === 'denied'
-                    ? 'locationPermissionNeeded'
-                    : locationState.status === 'too-far'
-                      ? 'locationOutsideCoverage'
-                      : 'locationNotAvailable',
-                )}
-              </small>
-            ) : null}
-          </div>
-        ) : null}
         <AnimatePresence initial={false}>
           {placeResults.length > 0 ? (
             <motion.ol
@@ -5907,6 +5954,20 @@ export default function CycleParkingFinder() {
             onOpenDetails={(point) => openParkingDetails(point, 'map')}
             onPlaceRouteWaypoint={placeRouteWaypoint}
             onViewportChange={loadMapDataForBounds}
+            onBrowseLocation={
+              isRouteWorkspace
+                ? undefined
+                : (location) => {
+                    const manifest = parkingDataClient.current?.getManifest();
+                    if (
+                      manifest &&
+                      isLocationInParkingCoverage(location, manifest)
+                    ) {
+                      cancelLocationRequest();
+                      saveLastArea(location);
+                    }
+                  }
+            }
             offlineAreaSelectionBounds={offlineAreaSelectionBounds}
             cycleNetworkFeatures={cycleNetworkFeatures}
             isCycleNetworkVisible={isCycleNetworkVisible}
@@ -7069,7 +7130,7 @@ export default function CycleParkingFinder() {
                       key="finder-header"
                     >
                       <div className="brand-mark" aria-hidden="true">
-                        <img src="favicon.svg" alt="" />
+                        <img src="favicon.svg?v=white-pin-1" alt="" />
                       </div>
                       <div>
                         <h1>Bike Neuks</h1>

@@ -147,6 +147,7 @@ type CycleParkingMapProps = {
   onOpenDetails: (point: ParkingPoint) => void;
   onPlaceRouteWaypoint?: (location: UserLocation) => void;
   onViewportChange: (bounds: ParkingMapBounds, zoom: number) => void;
+  onBrowseLocation?: (location: UserLocation) => void;
   offlineAreaSelectionBounds?: ParkingMapBounds | null;
 };
 
@@ -1981,11 +1982,13 @@ export default function CycleParkingMap({
   onOpenDetails,
   onPlaceRouteWaypoint,
   onViewportChange,
+  onBrowseLocation,
   offlineAreaSelectionBounds = null,
 }: CycleParkingMapProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const onViewportChangeRef = useRef(onViewportChange);
+  const onBrowseLocationRef = useRef(onBrowseLocation);
   const selectedPointIdRef = useRef(selectedPointId);
   const parkingMarkerRefs = useRef(new Map<string, RenderedMarker>());
   const startMarkerRef = useRef<RenderedMarker | null>(null);
@@ -2050,6 +2053,7 @@ export default function CycleParkingMap({
     [cycleNetworkFeatures],
   );
   onViewportChangeRef.current = onViewportChange;
+  onBrowseLocationRef.current = onBrowseLocation;
   const closeCycleNetworkPopup = useCallback(() => {
     const popup = cycleNetworkPopupRef.current;
     const root = cycleNetworkPopupRootRef.current;
@@ -2312,8 +2316,16 @@ export default function CycleParkingMap({
           ).length;
         setRenderedBasemapFeatureCount(count);
       });
-      mapInstance.on('moveend', () => {
+      mapInstance.on('moveend', (event) => {
         isAutomaticFocusAnimationRef.current = false;
+        // Remember intentional browsing, not startup focus, GPS, or route fits.
+        if (event.originalEvent) {
+          const bounds = getVisibleMapBounds(mapInstance);
+          onBrowseLocationRef.current?.({
+            latitude: (bounds.north + bounds.south) / 2,
+            longitude: (bounds.east + bounds.west) / 2,
+          });
+        }
         handleViewportChange({
           bounds: getVisibleMapBounds(mapInstance),
           zoom: mapInstance.getZoom(),

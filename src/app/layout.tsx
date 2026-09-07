@@ -78,27 +78,31 @@ export default function RootLayout({
           name="apple-mobile-web-app-status-bar-style"
           content="black-translucent"
         />
-        <link rel="icon" href={assetPath('/favicon.ico')} sizes="any" />
         <link
           rel="icon"
-          href={assetPath('/favicon.svg')}
+          href={assetPath('/favicon.ico?v=white-pin-1')}
+          sizes="any"
+        />
+        <link
+          rel="icon"
+          href={assetPath('/favicon.svg?v=white-pin-1')}
           type="image/svg+xml"
         />
         <link
           rel="icon"
-          href={assetPath('/icon-192.png')}
+          href={assetPath('/icon-192.png?v=white-pin-1')}
           sizes="192x192"
           type="image/png"
         />
         <link
           rel="icon"
-          href={assetPath('/icon-512.png')}
+          href={assetPath('/icon-512.png?v=white-pin-1')}
           sizes="512x512"
           type="image/png"
         />
         <link
           rel="apple-touch-icon"
-          href={assetPath('/apple-touch-icon.png')}
+          href={assetPath('/apple-touch-icon.png?v=white-pin-1')}
           sizes="180x180"
           type="image/png"
         />

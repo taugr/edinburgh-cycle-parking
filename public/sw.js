@@ -1,5 +1,5 @@
 const runtimeCachePrefix = 'neuk-bike-';
-const cacheName = `${runtimeCachePrefix}v14`;
+const cacheName = `${runtimeCachePrefix}v15`;
 // Explicit offline-area downloads deliberately use a separate, stable cache.
 // It must outlive routine app-shell upgrades so a completed area remains ready
 // after a new service worker activates.
@@ -17,12 +17,12 @@ function appPath(path) {
 const coreAssets = [
   appPath('/'),
   appPath('/site.webmanifest'),
-  appPath('/favicon.ico'),
-  appPath('/favicon.svg'),
-  appPath('/icon-192.png'),
-  appPath('/icon-512.png'),
-  appPath('/icon-maskable-512.png'),
-  appPath('/apple-touch-icon.png'),
+  appPath('/favicon.ico?v=white-pin-1'),
+  appPath('/favicon.svg?v=white-pin-1'),
+  appPath('/icon-192.png?v=white-pin-1'),
+  appPath('/icon-512.png?v=white-pin-1'),
+  appPath('/icon-maskable-512.png?v=white-pin-1'),
+  appPath('/apple-touch-icon.png?v=white-pin-1'),
 ];
 
 self.addEventListener('install', (event) => {
