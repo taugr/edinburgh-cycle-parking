@@ -1,5 +1,5 @@
 const runtimeCachePrefix = 'neuk-bike-';
-const cacheName = `${runtimeCachePrefix}v12`;
+const cacheName = `${runtimeCachePrefix}v13`;
 // Explicit offline-area downloads deliberately use a separate, stable cache.
 // It must outlive routine app-shell upgrades so a completed area remains ready
 // after a new service worker activates.
@@ -21,6 +21,7 @@ const coreAssets = [
   appPath('/favicon.svg'),
   appPath('/icon-192.png'),
   appPath('/icon-512.png'),
+  appPath('/icon-maskable-512.png'),
   appPath('/apple-touch-icon.png'),
 ];
 

@@ -1,28 +1,9 @@
-<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M256 16C136.7 16 40 112.7 40 232C40 388.5 243.3 491.8 250.2 495.2C253.8 497 258.2 497 261.8 495.2C268.7 491.8 472 388.5 472 232C472 112.7 375.3 16 256 16Z" fill="#0f766e"/>
-  
-  <circle cx="256" cy="216" r="170" fill="white"/>
-  
-  <path d="M190 315 L190 140 C190 118 208 100 230 100 L282 100 C304 100 322 118 322 140 L322 315" stroke="#cfeee7" stroke-width="16" stroke-linecap="round" fill="none"/>
-  
-  <g stroke="#0b5c55" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <circle cx="155" cy="250" r="54"/>
-    <circle cx="357" cy="250" r="54"/>
-    
-    <circle cx="240" cy="250" r="10" fill="#0b5c55"/>
-    
-    <polygon points="155,250 240,250 320,150 220,150" />
-    
-    <line x1="240" y1="250" x2="220" y2="150" />
-    
-    <line x1="320" y1="150" x2="357" y2="250" />
-    
-    <line x1="220" y1="150" x2="214" y2="125" />
-    
-    <path d="M198 125 C 205 125 220 123 230 128" stroke-width="12" stroke-linecap="round" />
-    
-    <line x1="320" y1="150" x2="315" y2="125" />
-    
-    <path d="M305 125 Q 315 125 330 118" stroke-width="10" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="112" fill="#0f766e"/>
+  <path d="M256 52c-96 0-174 75-174 169 0 109 132 198 163 224a17 17 0 0 0 22 0c31-26 163-115 163-224 0-94-78-169-174-169Z" fill="#ffffff"/>
+  <g stroke="#0b5c55" stroke-width="18" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="158" cy="250" r="46"/>
+    <circle cx="354" cy="250" r="46"/>
+    <path d="m158 250 55-73 36 73h-91m55-73h114l-78 73m-36-73-9-24m-16 0h39m127 97-41-113h-22"/>
   </g>
 </svg>
