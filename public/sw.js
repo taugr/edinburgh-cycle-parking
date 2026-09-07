@@ -1,5 +1,5 @@
 const runtimeCachePrefix = 'neuk-bike-';
-const cacheName = `${runtimeCachePrefix}v13`;
+const cacheName = `${runtimeCachePrefix}v14`;
 // Explicit offline-area downloads deliberately use a separate, stable cache.
 // It must outlive routine app-shell upgrades so a completed area remains ready
 // after a new service worker activates.
@@ -29,7 +29,12 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(cacheName)
-      .then((cache) => cache.addAll(coreAssets))
+      // A new shell must not copy old icons or HTML from the HTTP cache.
+      .then((cache) =>
+        cache.addAll(
+          coreAssets.map((url) => new Request(url, { cache: 'reload' })),
+        ),
+      )
       .then(() => self.skipWaiting()),
   );
 });
