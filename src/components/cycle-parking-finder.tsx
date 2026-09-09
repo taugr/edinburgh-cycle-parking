@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { RideGuidance } from '@/components/ride-guidance';
+import { useFinderWebMcp } from '@/components/use-finder-webmcp';
 import {
   AnimatePresence,
   LayoutGroup,
@@ -3850,7 +3851,7 @@ export default function CycleParkingFinder() {
       setPlaceSearchMessage(
         cachedResults.length === 0 ? t('noPlaceResults') : null,
       );
-      return;
+      return { status: 'complete', results: cachedResults };
     }
 
     const controller = new AbortController();
@@ -3886,7 +3887,7 @@ export default function CycleParkingFinder() {
         }
       }
       if (requestId !== placeSearchRequestId.current) {
-        return;
+        return { status: 'cancelled' };
       }
       captureAnalyticsEvent('place_searched', {
         result_count: results.length,
@@ -3895,17 +3896,19 @@ export default function CycleParkingFinder() {
       setPlaceResults(results);
       setPlaceSearchMessage(results.length === 0 ? t('noPlaceResults') : null);
       setHasUsedPlaceSearch(true);
+      return { status: 'complete', results };
     } catch {
       if (
         controller.signal.aborted ||
         requestId !== placeSearchRequestId.current
       ) {
-        return;
+        return { status: 'cancelled' };
       }
       captureAnalyticsEvent('place_searched', { error: true });
       setActivePlaceResultIndex(0);
       setPlaceResults([]);
       setPlaceSearchMessage(t('placeSearchError'));
+      return { status: 'error', message: t('placeSearchError') };
     } finally {
       if (requestId === placeSearchRequestId.current) {
         placeSearchAbortController.current = null;
@@ -5467,6 +5470,107 @@ export default function CycleParkingFinder() {
       clearSelectedParkingPoint();
     }
   }
+
+  const webMcpDataStatus =
+    parkingView === 'saved'
+      ? isSavedPointsLoading || savedNeuksStatus === 'loading'
+        ? 'loading'
+        : savedNeuksStatus === 'storage-error'
+          ? 'error'
+          : 'ready'
+      : discoverCategory === 'parking'
+        ? parkingDataStatus
+        : cyclingPoiDataStatus;
+
+  function requireWebMcpFinder() {
+    if (
+      isRouteWorkspace ||
+      isOfflineAreasOpen ||
+      isAttributionModalOpen ||
+      streetViewPoint
+    ) {
+      throw new Error(
+        'Close the open workspace or dialog to use the finder first.',
+      );
+    }
+  }
+
+  useFinderWebMcp({
+    getCurrentResults: (limit) => ({
+      status: webMcpDataStatus,
+      view: parkingView,
+      category: discoverCategory,
+      filters: parkingFilters,
+      sort: parkingSortMode,
+      routeWorkspace: routeWorkspaceView,
+      selectedId,
+      search: {
+        query: placeQuery,
+        status: isPlaceSearching ? 'loading' : 'idle',
+        message: placeSearchMessage,
+        results: isPlaceSearching ? [] : placeResults,
+      },
+      results:
+        webMcpDataStatus === 'ready'
+          ? activeListPoints.slice(0, limit).map((point) => ({
+              id: point.id,
+              name: point.name,
+              latitude: point.latitude,
+              longitude: point.longitude,
+              distanceMeters: point.distanceMeters,
+              details: getParkingPopupDetails(point, locale),
+            }))
+          : [],
+      totalInList: webMcpDataStatus === 'ready' ? activeListPoints.length : 0,
+    }),
+    searchPlaces: async (query) => {
+      requireWebMcpFinder();
+      setPlaceQuery(query);
+      setPlaceResults([]);
+      setMobileSheetState('expanded');
+      return await runPlaceSearch(query);
+    },
+    selectPlace: (id) => {
+      requireWebMcpFinder();
+      const result =
+        !isPlaceSearching && placeResults.find((place) => place.id === id);
+      if (!result)
+        throw new Error('Choose an ID from the current search results.');
+      selectPlace(result);
+      return {
+        status: 'selected',
+        place: result,
+        next: 'Read get_current_results for nearby loading status.',
+      };
+    },
+    showParkingDetails: (id) => {
+      requireWebMcpFinder();
+      if (webMcpDataStatus !== 'ready')
+        throw new Error('Wait for the current list to load.');
+      const point = activeListPoints.find((candidate) => candidate.id === id);
+      if (!point) throw new Error('Choose an ID from the current list.');
+      openParkingDetails(point, 'list');
+      return {
+        status: 'selected',
+        id: point.id,
+        name: point.name,
+        details: getParkingPopupDetails(point, locale),
+      };
+    },
+    startRoutePlanning: () => {
+      if (isOfflineAreasOpen || isAttributionModalOpen || streetViewPoint) {
+        throw new Error(
+          'Close the open dialog before opening the route planner.',
+        );
+      }
+      openNewRoutePlanner('map');
+      return {
+        status: 'opened',
+        routeCalculated: false,
+        existingDraftPreserved: routeDraft !== null,
+      };
+    },
+  });
 
   function renderThemeSettings(
     className = '',

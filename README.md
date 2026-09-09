@@ -44,6 +44,33 @@ the provider URL and rollback entry point.
 The app runs entirely in the browser. It has no backend, server database, paid
 API, or server-side personal-location storage.
 
+## WebMCP
+
+Supporting browsers can use the imperative
+[WebMCP API](https://webmachinelearning.github.io/webmcp/) to operate the same
+finder as the user. Tools register client-side through
+`document.modelContext.registerTool` and unregister when the finder unmounts.
+Unsupported browsers continue to work without a polyfill or extra dependency.
+
+| Tool                   | Effect                                                                                          |
+| ---------------------- | ----------------------------------------------------------------------------------------------- |
+| `get_current_results`  | Read the current list (up to 20 entries), filters, place matches, selection and loading status. |
+| `search_places`        | Send a place query to the existing Photon service and show the matches.                         |
+| `select_place`         | Select a current match, remember the reference area locally and start loading nearby results.   |
+| `show_parking_details` | Select an entry from the current list and show its details.                                     |
+| `start_route_planning` | Open or resume the planner, preserving the existing draft and stopping active ride guidance.    |
+
+Inputs are validated at execution time. Mutations finish committing their React
+updates before returning; selecting a place starts asynchronous data loading,
+whose status is available from `get_current_results`. Route planning only opens
+the flow; it does not claim to have calculated or saved a route. These tools do
+not request location permission, start GPS tracking, or write saved places.
+Public map labels and descriptions are returned as untrusted content.
+
+`e2e/webmcp.spec.ts` exercises these tools against the real finder with an
+injected WebMCP registry, including mobile details, cancellation and unsupported
+browsers. Native agent discovery requires a browser that implements this API.
+
 ## Quick start
 
 ```bash
